@@ -9,6 +9,7 @@ from .FT_prune import FT_prune
 from .FT_prune_bi import FT_prune_bi
 from .GA_prune_bi import GA_prune_bi
 from .GA_prune import GA_prune
+from .neggrad import negative_grad
 
 from .RL_pro import RL_proximal
 from .boundary_ex import boundary_expanding
@@ -49,6 +50,8 @@ def get_unlearn_method(name):
         return GA_prune
     elif name == "GA_prune_bi":
         return GA_prune_bi
+    elif name == 'NG':
+        return negative_grad
     elif name == "GA_l1":
         return GA_l1
     elif name == "boundary_expanding":

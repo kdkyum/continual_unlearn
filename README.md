@@ -50,13 +50,13 @@ pip install -r requirements.txt
 
     * Retrain
     ```bash
-    python main_forget.py --save_dir checkpoints/retrain_model/forget_class_${class_ids} --model_path checkpoints/base_model/0model_SA_best.pth.tar --unlearn retrain --class_to_replace ${class_ids} --unlearn_epochs ${epochs for unlearning} --unlearn_lr ${learning rate for unlearning} --data ~/.torchvision/dataset
+    python main_forget.py --save_dir checkpoints/retrain_model/forget_class_${class_ids} --model_path checkpoints/base_model/0checkpoint.pth.tar --unlearn retrain --class_to_replace ${class_ids} --unlearn_epochs ${epochs for unlearning} --unlearn_lr ${learning rate for unlearning} --data ~/.torchvision/dataset
     ```
 
     Example for retraining with 8 models using a for loop:
     ```bash
     BASE_SAVE_DIR="checkpoints/retrain_model"
-    MODEL_PATH="checkpoints/base_model/0model_SA_best.pth.tar"
+    MODEL_PATH="checkpoints/base_model/0checkpoint.pth.tar"
     EPOCHS=182
     LR=0.1
 
@@ -94,20 +94,40 @@ pip install -r requirements.txt
     
     ```bash
     # Define base parameters
-    MODEL_PATH="path/to/original/model.pth.tar"
-    BASE_SAVE_DIR="continual_unlearn"
+    MODEL_PATH="checkpoints/base_model/0checkpoint.pth.tar"
+    BASE_SAVE_DIR="checkpoints/finetune_model/forget_class"
     
     # Unlearn class 0
     python main_forget.py --save_dir ${BASE_SAVE_DIR}_c0 --model_path ${MODEL_PATH} \
         --unlearn FT --class_to_replace 0 --unlearn_epochs 10 --unlearn_lr 0.01 --data ~/.torchvision/dataset
         
     # Unlearn class 1 using the model that already forgot class 0
-    python main_forget.py --save_dir ${BASE_SAVE_DIR}_c0_c1 --model_path ${BASE_SAVE_DIR}_c0/model_best.pth.tar \
-        --unlearn FT --class_to_replace 0,1 --unlearn_epochs 10 --unlearn_lr 0.01 --data ~/.torchvision/dataset
+    python main_forget.py --save_dir ${BASE_SAVE_DIR}_c0_c1 --model_path ${BASE_SAVE_DIR}_c0/FTcheckpoint.pth.tar \
+        --unlearn FT --class_to_replace 0 1 --unlearn_epochs 10 --unlearn_lr 0.01 --data ~/.torchvision/dataset
         
     # Continue with class 2
-    python main_forget.py --save_dir ${BASE_SAVE_DIR}_c0_c1_c2 --model_path ${BASE_SAVE_DIR}_c0_c1/model_best.pth.tar \
-        --unlearn FT --class_to_replace 0,1,2 --unlearn_epochs 10 --unlearn_lr 0.01 --data ~/.torchvision/dataset
+    python main_forget.py --save_dir ${BASE_SAVE_DIR}_c0_c1_c2 --model_path ${BASE_SAVE_DIR}_c0_c1/FTcheckpoint.pth.tar \
+        --unlearn FT --class_to_replace 0 1 2 --unlearn_epochs 10 --unlearn_lr 0.01 --data ~/.torchvision/dataset
+
+    # Continue with class 3
+    python main_forget.py --save_dir ${BASE_SAVE_DIR}_c0_c1_c2_c3 --model_path ${BASE_SAVE_DIR}_c0_c1_c2/FTcheckpoint.pth.tar \
+        --unlearn FT --class_to_replace 0 1 2 3 --unlearn_epochs 10 --unlearn_lr 0.01 --data ~/.torchvision/dataset
+
+    # Continue with class 4
+    python main_forget.py --save_dir ${BASE_SAVE_DIR}_c0_c1_c2_c3_c4 --model_path ${BASE_SAVE_DIR}_c0_c1_c2_c3/FTcheckpoint.pth.tar \
+        --unlearn FT --class_to_replace 0 1 2 3 4 --unlearn_epochs 10 --unlearn_lr 0.01 --data ~/.torchvision/dataset
+    # Continue with class 5
+    python main_forget.py --save_dir ${BASE_SAVE_DIR}_c0_c1_c2_c3_c4_c5 --model_path ${BASE_SAVE_DIR}_c0_c1_c2_c3_c4/FTcheckpoint.pth.tar \
+        --unlearn FT --class_to_replace 0 1 2 3 4 5 --unlearn_epochs 10 --unlearn_lr 0.01 --data ~/.torchvision/dataset
+    # Continue with class 6
+    python main_forget.py --save_dir ${BASE_SAVE_DIR}_c0_c1_c2_c3_c4_c5_c6 --model_path ${BASE_SAVE_DIR}_c0_c1_c2_c3_c4_c5/FTcheckpoint.pth.tar \
+        --unlearn FT --class_to_replace 0 1 2 3 4 5 6 --unlearn_epochs 10 --unlearn_lr 0.01 --data ~/.torchvision/dataset
+    # Continue with class 7
+    python main_forget.py --save_dir ${BASE_SAVE_DIR}_c0_c1_c2_c3_c4_c5_c6_c7 --model_path ${BASE_SAVE_DIR}_c0_c1_c2_c3_c4_c5_c6/FTcheckpoint.pth.tar \
+        --unlearn FT --class_to_replace 0 1 2 3 4 5 6 7 --unlearn_epochs 10 --unlearn_lr 0.01 --data ~/.torchvision/dataset
+    # Continue with class 8
+    python main_forget.py --save_dir ${BASE_SAVE_DIR}_c0_c1_c2_c3_c4_c5_c6_c7_c8 --model_path ${BASE_SAVE_DIR}_c0_c1_c2_c3_c4_c5_c6/FTcheckpoint.pth.tar \
+        --unlearn FT --class_to_replace 0 1 2 3 4 5 6 7 8 --unlearn_epochs 10 --unlearn_lr 0.01 --data ~/.torchvision/dataset
     ```
     
     This process can be repeated for all classes you wish to unlearn, creating a chain of unlearning operations.

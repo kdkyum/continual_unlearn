@@ -51,11 +51,24 @@ def main():
         )
 
     forget_dataset = copy.deepcopy(marked_loader.dataset)
+    
+    # Extract the class to forget (last element if multiple)
+    class_to_forget = None
+    if hasattr(args, 'class_to_replace') and len(args.class_to_replace) > 0:
+        class_to_forget = args.class_to_replace[-1]
+        marked_value = -(class_to_forget + 1)  # Convert to negative representation
+    
     if args.dataset == "svhn":
         try:
-            marked = forget_dataset.targets < 0
+            if class_to_forget is not None:
+                marked = forget_dataset.targets == marked_value
+            else:
+                marked = forget_dataset.targets < 0
         except:
-            marked = forget_dataset.labels < 0
+            if class_to_forget is not None:
+                marked = forget_dataset.labels == marked_value
+            else:
+                marked = forget_dataset.labels < 0
         forget_dataset.data = forget_dataset.data[marked]
         try:
             forget_dataset.targets = -forget_dataset.targets[marked] - 1
@@ -64,9 +77,15 @@ def main():
         forget_loader = replace_loader_dataset(forget_dataset, seed=seed, shuffle=True)
         retain_dataset = copy.deepcopy(marked_loader.dataset)
         try:
-            marked = retain_dataset.targets >= 0
+            if class_to_forget is not None:
+                marked = retain_dataset.targets != marked_value
+            else:
+                marked = retain_dataset.targets >= 0
         except:
-            marked = retain_dataset.labels >= 0
+            if class_to_forget is not None:
+                marked = retain_dataset.labels != marked_value
+            else:
+                marked = retain_dataset.labels >= 0
         retain_dataset.data = retain_dataset.data[marked]
         try:
             retain_dataset.targets = retain_dataset.targets[marked]
@@ -78,7 +97,10 @@ def main():
         )
     else:
         try:
-            marked = forget_dataset.targets < 0
+            if class_to_forget is not None:
+                marked = forget_dataset.targets == marked_value
+            else:
+                marked = forget_dataset.targets < 0
             forget_dataset.data = forget_dataset.data[marked]
             forget_dataset.targets = -forget_dataset.targets[marked] - 1
             forget_loader = replace_loader_dataset(
@@ -91,11 +113,11 @@ def main():
             retain_loader = replace_loader_dataset(
                 retain_dataset, seed=seed, shuffle=True
             )
-            assert len(forget_dataset) + len(retain_dataset) == len(
-                train_loader_full.dataset
-            )
         except:
-            marked = forget_dataset.targets < 0
+            if class_to_forget is not None:
+                marked = forget_dataset.targets == marked_value
+            else:
+                marked = forget_dataset.targets < 0
             forget_dataset.imgs = forget_dataset.imgs[marked]
             forget_dataset.targets = -forget_dataset.targets[marked] - 1
             forget_loader = replace_loader_dataset(
@@ -107,9 +129,6 @@ def main():
             retain_dataset.targets = retain_dataset.targets[marked]
             retain_loader = replace_loader_dataset(
                 retain_dataset, seed=seed, shuffle=True
-            )
-            assert len(forget_dataset) + len(retain_dataset) == len(
-                train_loader_full.dataset
             )
 
     print(f"number of retain dataset {len(retain_dataset)}")
@@ -128,7 +147,7 @@ def main():
         model, evaluation_result = checkpoint
     else:
         if args.unlearn != "retrain":
-            checkpoint = torch.load(args.model_path, map_location=device)
+            checkpoint = torch.load(args.model_path, map_location=device, weights_only=False)
             if "state_dict" in checkpoint.keys():
                 checkpoint = checkpoint["state_dict"]
             model.load_state_dict(checkpoint, strict=False)
@@ -151,20 +170,9 @@ def main():
         evaluation_result["accuracy"] = accuracy
         unlearn.save_unlearn_checkpoint(model, evaluation_result, args)
 
-    # Create a non-augmented version of the train loader for evaluation
-    test_transform = transforms.Compose([transforms.ToTensor()])
-    train_dataset_no_aug = deepcopy(train_loader_full.dataset)
-    train_dataset_no_aug.transform = test_transform  # Remove augmentation transforms
-
-    train_loader_no_aug = torch.utils.data.DataLoader(
-        train_dataset_no_aug,
-        batch_size=args.batch_size,
-        shuffle=False,  # No need to shuffle during evaluation
-        num_workers=0,
-        pin_memory=False
-    )
+    utils.dataset_convert_to_test(train_loader_full, args)
     train_class_wise_acc = validate_class_wise(
-        train_loader_no_aug, model, args
+        train_loader_full, model, args
     )
     test_class_wise_acc = validate_class_wise(
         test_loader, model, args
@@ -195,7 +203,11 @@ def main():
         utils.dataset_convert_to_test(forget_loader, args)
         utils.dataset_convert_to_test(test_loader, args)
 
-        shadow_train = torch.utils.data.Subset(retain_dataset, list(range(test_len)))
+        if retain_len > test_len:
+            shadow_train = torch.utils.data.Subset(retain_dataset, list(range(test_len)))
+        else:
+            shadow_train = retain_dataset
+
         shadow_train_loader = torch.utils.data.DataLoader(
             shadow_train, batch_size=args.batch_size, shuffle=False
         )

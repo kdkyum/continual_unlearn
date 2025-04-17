@@ -24,6 +24,7 @@ from trainer import train, validate, validate_class_wise
 from utils import *
 from utils import NormalizeByChannelMeanStd
 import pandas as pd
+import utils
 
 best_sa = 0
 
@@ -159,20 +160,9 @@ def main():
                 )
             )
     else:
-        # Create a non-augmented version of the train loader for evaluation
-        test_transform = transforms.Compose([transforms.ToTensor()])
-        train_dataset_no_aug = deepcopy(train_loader.dataset)
-        train_dataset_no_aug.transform = test_transform  # Remove augmentation transforms
-
-        train_loader_no_aug = torch.utils.data.DataLoader(
-            train_dataset_no_aug,
-            batch_size=args.batch_size,
-            shuffle=False,  # No need to shuffle during evaluation
-            num_workers=0,
-            pin_memory=False
-        )
+        utils.dataset_convert_to_test(train_loader, args)
         train_class_wise_acc = validate_class_wise(
-            train_loader_no_aug, model, args
+            train_loader, model, args
         )
         test_class_wise_acc = validate_class_wise(
             test_loader, model, args

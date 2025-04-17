@@ -671,13 +671,28 @@ def replace_class(
             except:
                 indexes = np.flatnonzero(np.ones_like(dataset._labels))
     else:
-        try:
-            indexes = np.flatnonzero(np.array(dataset.targets) == class_to_replace)
-        except:
+        # Handle case when class_to_replace is a list
+        if isinstance(class_to_replace, list):
+            all_indexes = []
+            for c in class_to_replace:
+                try:
+                    idx = np.flatnonzero(np.array(dataset.targets) == c)
+                except:
+                    try:
+                        idx = np.flatnonzero(np.array(dataset.labels) == c)
+                    except:
+                        idx = np.flatnonzero(np.array(dataset._labels) == c)
+                all_indexes.append(idx)
+            indexes = np.concatenate(all_indexes)
+        else:
+            # Original handling for single class
             try:
-                indexes = np.flatnonzero(np.array(dataset.labels) == class_to_replace)
+                indexes = np.flatnonzero(np.array(dataset.targets) == class_to_replace)
             except:
-                indexes = np.flatnonzero(np.array(dataset._labels) == class_to_replace)
+                try:
+                    indexes = np.flatnonzero(np.array(dataset.labels) == class_to_replace)
+                except:
+                    indexes = np.flatnonzero(np.array(dataset._labels) == class_to_replace)
 
     if num_indexes_to_replace is not None:
         assert num_indexes_to_replace <= len(

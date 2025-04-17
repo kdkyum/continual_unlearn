@@ -143,7 +143,7 @@ def parse_args():
         default=None,
         help="Specific index data to forget",
     )
-    parser.add_argument("--alpha", default=0.2, type=float, help="unlearn noise")
+    parser.add_argument("--alpha", default=0.99, type=float, help="unlearn noise")
     parser.add_argument("--mask_path", default=None, type=str, help="the path of saliency map")
 
     return parser.parse_args()
