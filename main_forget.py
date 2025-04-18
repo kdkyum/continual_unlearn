@@ -14,6 +14,8 @@ import utils
 from trainer import validate, validate_class_wise
 import torchvision.transforms as transforms
 import pandas as pd
+import json
+import time
 
 def main():
     args = arg_parser.parse_args()
@@ -153,11 +155,15 @@ def main():
             model.load_state_dict(checkpoint, strict=False)
 
         unlearn_method = unlearn.get_unlearn_method(args.unlearn)
+        start_time = time.time()
         unlearn_method(unlearn_data_loaders, model, criterion, args)
+        end_time = time.time()
         unlearn.save_unlearn_checkpoint(model, None, args)
 
     if evaluation_result is None:
         evaluation_result = {}
+
+    evaluation_result["unlearning_time"] = end_time - start_time
 
     if "new_accuracy" not in evaluation_result:
         accuracy = {}
@@ -181,9 +187,6 @@ def main():
     combined_results = pd.concat(
         [train_class_wise_acc.assign(dataset="train"), test_class_wise_acc.assign(dataset="test")],
         ignore_index=True
-    )
-    combined_results.to_csv(
-        os.path.join(args.save_dir, "class_wise_accuracy.csv"), index=False
     )
 
     for deprecated in ["MIA", "SVC_MIA", "SVC_MIA_forget"]:
@@ -221,6 +224,13 @@ def main():
         )
         unlearn.save_unlearn_checkpoint(model, evaluation_result, args)
 
+    combined_results.to_csv(
+        os.path.join(args.save_dir, "class_wise_accuracy.csv"), index=False
+    )
+    # Save evaluation_result and combined_results in the same file
+    evaluation_result["class_wise_accuracy"] = combined_results.to_dict(orient="records")
+    with open(os.path.join(args.save_dir, "evaluation_results.json"), "w") as f:
+        json.dump(evaluation_result, f, indent=4)
     unlearn.save_unlearn_checkpoint(model, evaluation_result, args)
 
 
