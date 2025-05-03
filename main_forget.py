@@ -16,6 +16,7 @@ import torchvision.transforms as transforms
 import pandas as pd
 import json
 import time
+import numpy as np
 
 def main():
     args = arg_parser.parse_args()
@@ -54,21 +55,35 @@ def main():
 
     forget_dataset = copy.deepcopy(marked_loader.dataset)
     
-    # Extract the class to forget (last element if multiple)
-    class_to_forget = None
+    # Extract the classes to forget
+    classes_to_forget = None
     if hasattr(args, 'class_to_replace') and len(args.class_to_replace) > 0:
-        class_to_forget = args.class_to_replace[-1]
-        marked_value = -(class_to_forget + 1)  # Convert to negative representation
+        if args.dataset.lower() == "cifar100" and len(args.class_to_replace) >= 5:
+            # For CIFAR100 with many classes to forget, limit to last 5
+            classes_to_forget = args.class_to_replace[-5:]
+            print(f"CIFAR100 detected with many classes to forget. Limiting to last 5: {classes_to_forget}")
+        else:
+            # Default behavior - use the last class
+            classes_to_forget = [args.class_to_replace[-1]]
+            
+        # Convert classes to their negative representation for marking
+        marked_values = [-(c + 1) for c in classes_to_forget]
     
     if args.dataset == "svhn":
         try:
-            if class_to_forget is not None:
-                marked = forget_dataset.targets == marked_value
+            if classes_to_forget is not None:
+                # Create a mask for all classes to forget
+                marked = np.zeros_like(forget_dataset.targets, dtype=bool)
+                for marked_value in marked_values:
+                    marked = marked | (forget_dataset.targets == marked_value)
             else:
                 marked = forget_dataset.targets < 0
         except:
-            if class_to_forget is not None:
-                marked = forget_dataset.labels == marked_value
+            if classes_to_forget is not None:
+                # Create a mask for all classes to forget
+                marked = np.zeros_like(forget_dataset.labels, dtype=bool)
+                for marked_value in marked_values:
+                    marked = marked | (forget_dataset.labels == marked_value)
             else:
                 marked = forget_dataset.labels < 0
         forget_dataset.data = forget_dataset.data[marked]
@@ -79,13 +94,17 @@ def main():
         forget_loader = replace_loader_dataset(forget_dataset, seed=seed, shuffle=True)
         retain_dataset = copy.deepcopy(marked_loader.dataset)
         try:
-            if class_to_forget is not None:
-                marked = retain_dataset.targets != marked_value
+            if classes_to_forget is not None:
+                marked = np.ones_like(retain_dataset.targets, dtype=bool)
+                for marked_value in marked_values:
+                    marked = marked & (retain_dataset.targets != marked_value)
             else:
                 marked = retain_dataset.targets >= 0
         except:
-            if class_to_forget is not None:
-                marked = retain_dataset.labels != marked_value
+            if classes_to_forget is not None:
+                marked = np.ones_like(retain_dataset.labels, dtype=bool)
+                for marked_value in marked_values:
+                    marked = marked & (retain_dataset.labels != marked_value)
             else:
                 marked = retain_dataset.labels >= 0
         retain_dataset.data = retain_dataset.data[marked]
@@ -94,13 +113,12 @@ def main():
         except:
             retain_dataset.labels = retain_dataset.labels[marked]
         retain_loader = replace_loader_dataset(retain_dataset, seed=seed, shuffle=True)
-        assert len(forget_dataset) + len(retain_dataset) == len(
-            train_loader_full.dataset
-        )
     else:
         try:
-            if class_to_forget is not None:
-                marked = forget_dataset.targets == marked_value
+            if classes_to_forget is not None:
+                marked = np.zeros_like(forget_dataset.targets, dtype=bool)
+                for marked_value in marked_values:
+                    marked = marked | (forget_dataset.targets == marked_value)
             else:
                 marked = forget_dataset.targets < 0
             forget_dataset.data = forget_dataset.data[marked]
@@ -116,8 +134,10 @@ def main():
                 retain_dataset, seed=seed, shuffle=True
             )
         except:
-            if class_to_forget is not None:
-                marked = forget_dataset.targets == marked_value
+            if classes_to_forget is not None:
+                marked = np.zeros_like(forget_dataset.targets, dtype=bool)
+                for marked_value in marked_values:
+                    marked = marked | (forget_dataset.targets == marked_value)
             else:
                 marked = forget_dataset.targets < 0
             forget_dataset.imgs = forget_dataset.imgs[marked]
@@ -149,10 +169,29 @@ def main():
         model, evaluation_result = checkpoint
     else:
         if args.unlearn != "retrain":
-            checkpoint = torch.load(args.model_path, map_location=device, weights_only=False)
-            if "state_dict" in checkpoint.keys():
-                checkpoint = checkpoint["state_dict"]
-            model.load_state_dict(checkpoint, strict=False)
+            if args.model_path is None:
+                from models.pretrained import ResNet18CIFAR10, ResNet50CIFAR10, ResNet18CIFAR100, ResNet50CIFAR100
+                # Select the appropriate pretrained model based on dataset and architecture
+                if args.dataset.lower() == "cifar10":
+                    if "resnet18" in args.arch.lower():
+                        model = ResNet18CIFAR10()
+                    elif "resnet50" in args.arch.lower():
+                        model = ResNet50CIFAR10()
+                elif args.dataset.lower() == "cifar100":
+                    if "resnet18" in args.arch.lower():
+                        model = ResNet18CIFAR100()
+                    elif "resnet50" in args.arch.lower():
+                        model = ResNet50CIFAR100()
+            else:
+                 # For boundary_expanding method, we need to expand the model before loading the checkpoint
+                if args.unlearn == "boundary_expanding":
+                    from unlearn.boundary_ex import expand_model
+                    expand_model(model)
+                checkpoint = torch.load(args.model_path, map_location=device, weights_only=False)
+                if "state_dict" in checkpoint.keys():
+                    checkpoint = checkpoint["state_dict"]
+                    
+                model.load_state_dict(checkpoint, strict=False)
 
         unlearn_method = unlearn.get_unlearn_method(args.unlearn)
         start_time = time.time()
@@ -164,6 +203,19 @@ def main():
         evaluation_result = {}
 
     evaluation_result["unlearning_time"] = end_time - start_time
+
+    # Load best model if it exists before evaluation
+    best_model_path = os.path.join(args.save_dir, "model_best.pth.tar")
+    if os.path.exists(best_model_path):
+        print("Loading best model checkpoint for evaluation...")
+        best_checkpoint = torch.load(best_model_path, map_location=device)
+        if "state_dict" in best_checkpoint:
+            model.load_state_dict(best_checkpoint["state_dict"], strict=False)
+            if "rfa" in best_checkpoint:
+                print(f"Loaded best model with RFA: {best_checkpoint['rfa']:.4f}")
+                print(f"Best model details - Retain acc: {best_checkpoint.get('retain_acc', 'N/A')}, "
+                      f"Forget acc: {best_checkpoint.get('forget_acc', 'N/A')}, "
+                      f"Epoch: {best_checkpoint.get('epoch', 'N/A')}")
 
     if "new_accuracy" not in evaluation_result:
         accuracy = {}

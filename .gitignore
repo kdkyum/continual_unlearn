@@ -6,7 +6,8 @@
 # website: http://jupyter.org/
 
 checkpoints/
-
+hyperparam_jobs/
+.github/
 .ipynb_checkpoints
 */.ipynb_checkpoints/*
 

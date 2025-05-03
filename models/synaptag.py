@@ -1,5 +1,6 @@
-import math
 import torch
+import math
+
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.autograd as autograd
@@ -104,13 +105,6 @@ class SupermaskNet(nn.Module):
 
     def forward(self, x):
         return self.net(x)
-
-    def get_masks(self):
-        masks = {}
-        for name, module in self.named_modules():
-            if isinstance(module, (SupermaskConv, SupermaskLinear)):
-                masks[name] = (module.scores.abs() >= module.threshold).float()
-        return masks
 
     def get_masks(self):
         masks = {}

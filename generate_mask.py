@@ -194,10 +194,24 @@ def main():
     if args.resume and checkpoint is not None:
         model, evaluation_result = checkpoint
     else:
-        checkpoint = torch.load(args.model_path, map_location=device)
-        if "state_dict" in checkpoint.keys():
-            checkpoint = checkpoint["state_dict"]
-            model.load_state_dict(checkpoint, strict=False)
+        if args.model_path is None:
+            from models.pretrained import ResNet18CIFAR10, ResNet50CIFAR10, ResNet18CIFAR100, ResNet50CIFAR100
+            # Select the appropriate pretrained model based on dataset and architecture
+            if args.dataset.lower() == "cifar10":
+                if "resnet18" in args.arch.lower():
+                    model = ResNet18CIFAR10()
+                elif "resnet50" in args.arch.lower():
+                    model = ResNet50CIFAR10()
+            elif args.dataset.lower() == "cifar100":
+                if "resnet18" in args.arch.lower():
+                    model = ResNet18CIFAR100()
+                elif "resnet50" in args.arch.lower():
+                    model = ResNet50CIFAR100()
+        else:
+            checkpoint = torch.load(args.model_path, map_location=device)
+            if "state_dict" in checkpoint.keys():
+                checkpoint = checkpoint["state_dict"]
+                model.load_state_dict(checkpoint, strict=False)
 
     save_gradient_ratio(unlearn_data_loaders, model, criterion, args)
 

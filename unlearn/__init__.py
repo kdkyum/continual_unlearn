@@ -10,6 +10,7 @@ from .FT_prune_bi import FT_prune_bi
 from .GA_prune_bi import GA_prune_bi
 from .GA_prune import GA_prune
 from .neggrad import negative_grad
+from .synaptag import synaptag
 
 from .RL_pro import RL_proximal
 from .boundary_ex import boundary_expanding
@@ -60,5 +61,7 @@ def get_unlearn_method(name):
         return boundary_shrink
     elif name == "RL_proximal":
         return RL_proximal
+    elif name == "synaptag":
+        return synaptag
     else:
         raise NotImplementedError(f"Unlearn method {name} not implemented!")

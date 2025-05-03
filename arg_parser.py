@@ -136,6 +136,18 @@ def parse_args():
         default=None,
         help="List of specific class indices to forget",
     )
+    parser.add_argument(
+        "--sparsity",
+        default=0.5,
+        type=float,
+        help="sparsity of the mask (only for synaptag)",
+    )
+
+    parser.add_argument(
+        "--layer_wise",
+        action="store_true",
+        help="whether to use layer-wise sparsity (only for synaptag)",
+    )
 
     parser.add_argument(
         "--indexes_to_replace",
