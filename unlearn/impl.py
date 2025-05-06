@@ -95,7 +95,7 @@ def _iterative_unlearn_impl(unlearn_iter_func):
             model.load_state_dict(initialization, strict=True)
             prune_model_custom(model, current_mask)
 
-        if args.unlearn == "synaptag":
+        if 'synaptag' in args.unlearn:
             model = SupermaskNet(deepcopy(model), sparsity=args.sparsity, layer_wise=args.layer_wise).cuda()
             trainable_params = [p for p in model.parameters() if p.requires_grad]
         else:
@@ -213,7 +213,7 @@ def _iterative_unlearn_impl(unlearn_iter_func):
                     "epoch": epoch
                 }
                 # Save the best model based on RFA
-                if args.unlearn == "synaptag":
+                if "synaptag" in args.unlearn:
                     mask = model.get_masks()
                     # Create a copy of the base model
                     base_model_copy = deepcopy(model.base_model)

@@ -235,9 +235,47 @@ def main():
     test_class_wise_acc = validate_class_wise(
         test_loader, model, args
     )
+    
+    # Linear probing
+    lp_model = deepcopy(model)
+    # Freeze all layers except fc layer
+    for name, param in lp_model.named_parameters():
+        param.requires_grad = False
+        
+    lp_model.fc = nn.Linear(
+        lp_model.fc.in_features, args.num_classes)
+    
+    lp_model.eval()
+            
+    for name, param in lp_model.named_parameters():
+        print(f"{name} - requires_grad: {param.requires_grad}")
+
+    # Send model to GPU
+    lp_model = lp_model.to(device)
+    optimizer = torch.optim.Adam(lp_model.fc.parameters())
+    # Train the fc layer
+    num_epochs = 10
+    lp_model.fc.train()
+    for epoch in range(num_epochs):
+        # Set model to train mode but preserve BatchNorm in eval mode
+        for inputs, targets in train_loader_full:
+            inputs, targets = inputs.to(device), targets.to(device)
+            
+            optimizer.zero_grad()
+            outputs = lp_model(inputs)
+            loss = criterion(outputs, targets)
+            loss.backward()
+            optimizer.step()
+
+    test_class_wise_acc_LP = validate_class_wise(
+        test_loader, lp_model, args
+    )
+
     # Combine train and test results into a single file
     combined_results = pd.concat(
-        [train_class_wise_acc.assign(dataset="train"), test_class_wise_acc.assign(dataset="test")],
+        [train_class_wise_acc.assign(dataset="train"), 
+         test_class_wise_acc.assign(dataset="test"),
+         test_class_wise_acc_LP.assign(dataset="test_LP")],
         ignore_index=True
     )
 

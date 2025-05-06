@@ -82,8 +82,8 @@ def get_hyperparams(hyperparams, dataset, model, method):
     if key not in hyperparams:
         print(f"Warning: No hyperparameters found for {key}. Using default values.")
         return {
-            'best_lr': 0.01,
-            'best_sparsity': 0.05 if method == 'synaptag' else None
+            'best_lr': 0.1,
+            'best_sparsity': 0.1 if 'synaptag' in method else None
         }
     
     return hyperparams[key]
@@ -451,7 +451,7 @@ def main():
     # Define datasets and methods based on user selection
     datasets = ['cifar10', 'cifar100'] if args.dataset == 'all' else [args.dataset]
     model = 'resnet18'  # Only using resnet18 as specified
-    methods = ['RL', 'GA', 'NG', 'FT', 'synaptag'] if args.method == 'all' else [args.method]
+    methods = ['synaptag_GA', 'synaptag_RL'] #['RL', 'GA', 'NG', 'FT', 'synaptag'] if args.method == 'all' else [args.method]
     
     # Track all generated scripts
     generated_scripts = []

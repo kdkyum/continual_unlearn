@@ -307,7 +307,7 @@ def analyze_results(args):
     """Analyze existing results to find the best hyperparameters"""
     datasets = ["cifar10", "cifar100"]
     models = ["resnet18"]
-    methods = ["RL", "GA", "NG", "FT", "boundary_expanding", "boundary_shrink", "synaptag"]
+    methods = ["RL", "GA", "NG", "FT", "synaptag"]
     
     best_params = {}
     
