@@ -305,7 +305,7 @@ def submit_jobs_with_limit(scripts, max_jobs=50, check_interval=60):
 
 def analyze_results(args):
     """Analyze existing results to find the best hyperparameters"""
-    datasets = ["cifar100"]
+    datasets = ["cifar10", "cifar100"]
     models = ["resnet18"]
     methods = ["RL", "GA", "NG", "FT", "boundary_expanding", "boundary_shrink", "synaptag"]
     
@@ -462,9 +462,9 @@ def main():
         return
     
     # Define the search space
-    datasets = ["cifar100"]
+    datasets = ["cifar10", "cifar100"]
     models = ["resnet18"]
-    methods = ["synaptag", "RL", "GA", "NG", "FT", "boundary_expanding", "boundary_shrink"]#, "synaptag"]
+    methods = ["synaptag", "RL", "GA", "NG", "FT", "boundary_expanding", "boundary_shrink"]
     learning_rates = generate_learning_rates()
     
     # Create output directories

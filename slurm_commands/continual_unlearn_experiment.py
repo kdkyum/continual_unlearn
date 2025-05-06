@@ -243,31 +243,28 @@ for END_CLASS in $(seq $INCREMENT $INCREMENT $MAX_CLASS); do
     PREV_END=$((END_CLASS - INCREMENT))
     
     echo "=========================================================="
-    echo "Starting cumulative unlearning step for classes $START_CLASS-$END_CLASS"
+    echo "Starting cumulative unlearning step for classes $START_CLASS-$((END_CLASS-1))"
     
     # Define the save directory for this step
-    STEP_DIR="${BASE_SAVE_DIR}/0-${END_CLASS}"
+    STEP_DIR="${BASE_SAVE_DIR}/0-$((END_CLASS-1))"
     mkdir -p ${STEP_DIR}
     
-    # Build the cumulative class list (0 to END_CLASS)
+    # Build the cumulative class list (0 to END_CLASS-1)
     CLASS_LIST=""
-    for CLASS_ID in $(seq $START_CLASS $END_CLASS); do
+    for CLASS_ID in $(seq $START_CLASS $((END_CLASS-1))); do
         CLASS_LIST="${CLASS_LIST} ${CLASS_ID}"
     done
     CLASS_LIST=$(echo ${CLASS_LIST} | xargs)  # Trim leading/trailing spaces
     
     # Build the list of new classes in this increment
     NEW_CLASSES=""
-    for CLASS_ID in $(seq $((PREV_END + 1)) $END_CLASS); do
+    for CLASS_ID in $(seq $((PREV_END)) $((END_CLASS-1))); do
         NEW_CLASSES="${NEW_CLASSES} ${CLASS_ID}"
     done
     NEW_CLASSES=$(echo ${NEW_CLASSES} | xargs)  # Trim leading/trailing spaces
     
     echo "Unlearning classes: ${CLASS_LIST}"
     echo "New classes in this increment: ${NEW_CLASSES}"
-    
-    # For SalUn, choose the first class of the new classes for mask generation
-    CLASS_TO_REPLACE=$(echo ${NEW_CLASSES} | awk '{print $1}')
 """
     
     # For SalUn/RL method, add mask generation step
@@ -279,9 +276,9 @@ for END_CLASS in $(seq $INCREMENT $INCREMENT $MAX_CLASS); do
     mkdir -p ${MASK_SUBDIR}
     MASK_PATH="${MASK_SUBDIR}/with_${THRESHOLD}.pt"
     
-    echo "Generating saliency map for class: ${CLASS_TO_REPLACE}"
+    echo "Generating saliency map for class: ${NEW_CLASSES}"
     MASK_COMMAND="python generate_mask.py --save_dir ${MASK_SUBDIR} \\
-        --class_to_replace ${CLASS_TO_REPLACE} --unlearn_epochs 1 --data ${DATA_PATH}"
+        --class_to_replace ${NEW_CLASSES} --unlearn_epochs 1 --data ${DATA_PATH}"
     
     # Add model path if we have a previous model
     if [ ! -z "${CURRENT_MODEL_PATH}" ]; then
@@ -302,14 +299,14 @@ for END_CLASS in $(seq $INCREMENT $INCREMENT $MAX_CLASS); do
         else:  # cifar100
             slurm_script += """
     # Step 1: Generate the saliency map for SalUn/RL method
-    MASK_SUBDIR="${MASK_DIR}/0-${END_CLASS}"
+    MASK_SUBDIR="${MASK_DIR}/0-$((END_CLASS-1))"
     mkdir -p ${MASK_SUBDIR}
     MASK_PATH="${MASK_SUBDIR}/with_${THRESHOLD}.pt"
     
-    echo "Generating saliency map using class: ${CLASS_TO_REPLACE}"
+    echo "Generating saliency map using class: ${NEW_CLASSES}"
     
     MASK_COMMAND="python generate_mask.py --save_dir ${MASK_SUBDIR} \\
-        --class_to_replace ${CLASS_TO_REPLACE} --unlearn_epochs 1 \\
+        --class_to_replace ${NEW_CLASSES} --unlearn_epochs 1 \\
         --dataset cifar100 --num_classes 100 --data ${DATA_PATH}"
     
     # Add model path if we have a previous model
@@ -324,7 +321,7 @@ for END_CLASS in $(seq $INCREMENT $INCREMENT $MAX_CLASS); do
     EXIT_STATUS=$?
     
     if [ ${EXIT_STATUS} -ne 0 ]; then
-        echo "Error: Saliency map generation for classes 0-${END_CLASS} failed with exit status ${EXIT_STATUS}"
+        echo "Error: Saliency map generation for classes 0-$((END_CLASS-1)) failed with exit status ${EXIT_STATUS}"
         exit ${EXIT_STATUS}
     fi
 """
@@ -414,7 +411,7 @@ echo "Cumulative unlearning completed for all classes 0-$((MAX_CLASSES-1))!"
 """
     else:  # cifar100
         slurm_script += """
-        echo "Error: Unlearning for classes 0-${END_CLASS} failed with exit status ${EXIT_STATUS}"
+        echo "Error: Unlearning for classes 0-$((END_CLASS-1)) failed with exit status ${EXIT_STATUS}"
         exit ${EXIT_STATUS}
     fi
     
@@ -428,11 +425,11 @@ echo "Cumulative unlearning completed for all classes 0-$((MAX_CLASSES-1))!"
         exit 1
     fi
     
-    echo "Successfully unlearned classes 0-${END_CLASS}"
+    echo "Successfully unlearned classes 0-$((END_CLASS-1))"
     echo "=========================================================="
 done
 
-echo "Cumulative unlearning completed for all CIFAR-100 classes up to $MAX_CLASS!"
+echo "Cumulative unlearning completed for all CIFAR-100 classes up to $((MAX_CLASS-1))!"
 """
     
     # Write the script to file
@@ -454,7 +451,7 @@ def main():
     # Define datasets and methods based on user selection
     datasets = ['cifar10', 'cifar100'] if args.dataset == 'all' else [args.dataset]
     model = 'resnet18'  # Only using resnet18 as specified
-    methods = ['RL', 'GA', 'NG', 'FT', 'boundary_expanding', 'boundary_shrink', 'synaptag'] if args.method == 'all' else [args.method]
+    methods = ['RL', 'GA', 'NG', 'FT', 'synaptag'] if args.method == 'all' else [args.method]
     
     # Track all generated scripts
     generated_scripts = []
