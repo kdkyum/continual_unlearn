@@ -58,13 +58,7 @@ def main():
     # Extract the classes to forget
     classes_to_forget = None
     if hasattr(args, 'class_to_replace') and len(args.class_to_replace) > 0:
-        if args.dataset.lower() == "cifar100" and len(args.class_to_replace) >= 5:
-            # For CIFAR100 with many classes to forget, limit to last 5
-            classes_to_forget = args.class_to_replace[-5:]
-            print(f"CIFAR100 detected with many classes to forget. Limiting to last 5: {classes_to_forget}")
-        else:
-            # Default behavior - use the last class
-            classes_to_forget = [args.class_to_replace[-1]]
+        classes_to_forget = [args.class_to_replace[-1]]
             
         # Convert classes to their negative representation for marking
         marked_values = [-(c + 1) for c in classes_to_forget]

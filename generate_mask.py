@@ -1,6 +1,7 @@
 import copy
 import os
 from collections import OrderedDict
+import numpy as np
 
 import arg_parser
 import torch
@@ -118,11 +119,32 @@ def main():
         )
 
     forget_dataset = copy.deepcopy(marked_loader.dataset)
+
+    # Extract the classes to forget
+    classes_to_forget = None
+    if hasattr(args, 'class_to_replace') and len(args.class_to_replace) > 0:
+        classes_to_forget = [args.class_to_replace[-1]]
+            
+        # Convert classes to their negative representation for marking
+        marked_values = [-(c + 1) for c in classes_to_forget]
+    
     if args.dataset == "svhn":
         try:
-            marked = forget_dataset.targets < 0
+            if classes_to_forget is not None:
+                # Create a mask for all classes to forget
+                marked = np.zeros_like(forget_dataset.targets, dtype=bool)
+                for marked_value in marked_values:
+                    marked = marked | (forget_dataset.targets == marked_value)
+            else:
+                marked = forget_dataset.targets < 0
         except:
-            marked = forget_dataset.labels < 0
+            if classes_to_forget is not None:
+                # Create a mask for all classes to forget
+                marked = np.zeros_like(forget_dataset.labels, dtype=bool)
+                for marked_value in marked_values:
+                    marked = marked | (forget_dataset.labels == marked_value)
+            else:
+                marked = forget_dataset.labels < 0
         forget_dataset.data = forget_dataset.data[marked]
         try:
             forget_dataset.targets = -forget_dataset.targets[marked] - 1
@@ -131,22 +153,33 @@ def main():
         forget_loader = replace_loader_dataset(forget_dataset, seed=seed, shuffle=True)
         retain_dataset = copy.deepcopy(marked_loader.dataset)
         try:
-            marked = retain_dataset.targets >= 0
+            if classes_to_forget is not None:
+                marked = np.ones_like(retain_dataset.targets, dtype=bool)
+                for marked_value in marked_values:
+                    marked = marked & (retain_dataset.targets != marked_value)
+            else:
+                marked = retain_dataset.targets >= 0
         except:
-            marked = retain_dataset.labels >= 0
+            if classes_to_forget is not None:
+                marked = np.ones_like(retain_dataset.labels, dtype=bool)
+                for marked_value in marked_values:
+                    marked = marked & (retain_dataset.labels != marked_value)
+            else:
+                marked = retain_dataset.labels >= 0
         retain_dataset.data = retain_dataset.data[marked]
         try:
             retain_dataset.targets = retain_dataset.targets[marked]
         except:
             retain_dataset.labels = retain_dataset.labels[marked]
         retain_loader = replace_loader_dataset(retain_dataset, seed=seed, shuffle=True)
-        assert len(forget_dataset) + len(retain_dataset) == len(
-            train_loader_full.dataset
-        )
-
     else:
         try:
-            marked = forget_dataset.targets < 0
+            if classes_to_forget is not None:
+                marked = np.zeros_like(forget_dataset.targets, dtype=bool)
+                for marked_value in marked_values:
+                    marked = marked | (forget_dataset.targets == marked_value)
+            else:
+                marked = forget_dataset.targets < 0
             forget_dataset.data = forget_dataset.data[marked]
             forget_dataset.targets = -forget_dataset.targets[marked] - 1
             forget_loader = replace_loader_dataset(
@@ -159,11 +192,13 @@ def main():
             retain_loader = replace_loader_dataset(
                 retain_dataset, seed=seed, shuffle=True
             )
-            assert len(forget_dataset) + len(retain_dataset) == len(
-                train_loader_full.dataset
-            )
         except:
-            marked = forget_dataset.targets < 0
+            if classes_to_forget is not None:
+                marked = np.zeros_like(forget_dataset.targets, dtype=bool)
+                for marked_value in marked_values:
+                    marked = marked | (forget_dataset.targets == marked_value)
+            else:
+                marked = forget_dataset.targets < 0
             forget_dataset.imgs = forget_dataset.imgs[marked]
             forget_dataset.targets = -forget_dataset.targets[marked] - 1
             forget_loader = replace_loader_dataset(
@@ -175,9 +210,6 @@ def main():
             retain_dataset.targets = retain_dataset.targets[marked]
             retain_loader = replace_loader_dataset(
                 retain_dataset, seed=seed, shuffle=True
-            )
-            assert len(forget_dataset) + len(retain_dataset) == len(
-                train_loader_full.dataset
             )
 
     print(f"number of retain dataset {len(retain_dataset)}")

@@ -158,11 +158,7 @@ def _iterative_unlearn_impl(unlearn_iter_func):
             val_loader = data_loaders['val']
             
             # Handle multiple forget classes
-            forget_classes = []
-            if args.dataset.lower() == "cifar100" and len(args.class_to_replace) >= 5:
-                forget_classes = args.class_to_replace[-5:]  # Take only last 5 classes for CIFAR100
-            else:
-                forget_classes = [args.class_to_replace[-1]]  # Default: take last class
+            forget_classes = [args.class_to_replace[-1]]  # Default: take last class
                 
             retain_classes = [c for c in np.arange(args.num_classes) if c not in args.class_to_replace]
             
