@@ -139,7 +139,7 @@ def _iterative_unlearn_impl(unlearn_iter_func):
         # Early stopping parameters
         best_rfa = -float('inf')
         epochs_without_improvement = 0
-        early_stop_patience = 20  # Default patience for early stopping
+        # early_stop_patience = 20  # Default patience for early stopping
         
         for epoch in range(0, args.unlearn_epochs):
             start_time = time.time()
@@ -247,11 +247,6 @@ def _iterative_unlearn_impl(unlearn_iter_func):
                 print(f"New best RFA: {best_rfa:.4f}, model saved as model_best.pth.tar")
             else:
                 epochs_without_improvement += 1
-            
-            # Early stopping check
-            if epochs_without_improvement >= early_stop_patience:
-                print(f"Early stopping triggered. No improvement in RFA for {early_stop_patience} consecutive epochs.")
-                break
                 
             scheduler.step()
 

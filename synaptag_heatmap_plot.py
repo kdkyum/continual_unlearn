@@ -102,7 +102,7 @@ if __name__ == "__main__":
 
     datasets = ["cifar10", "cifar100"] # Add "tinyimagenet" if needed
     model = "resnet18"
-    method = "synaptag"
+    method = "synaptag_NG"
 
     for dataset in datasets:
         dataset_dir = os.path.join(base_search_dir, dataset, model, method)

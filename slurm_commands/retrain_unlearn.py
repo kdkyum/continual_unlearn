@@ -66,7 +66,7 @@ def generate_slurm_script(args):
 #SBATCH -o {args.output_dir}/{args.job_name}_%A_%a.out
 #SBATCH -e {args.output_dir}/{args.job_name}_%A_%a.err
 # Initial working directory:
-#SBATCH -D ./
+#SBATCH -D /raven/ptmp/kdkyum/workdir/continual_unlearn
 # Job name
 #SBATCH -J {args.job_name}
 #

@@ -192,6 +192,7 @@ def main():
 
         if args.mask_path:
             mask = torch.load(args.mask_path)
+            print(f"Loaded mask from {args.mask_path}")
         else:
             mask = None
 

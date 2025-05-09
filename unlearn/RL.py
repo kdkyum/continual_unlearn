@@ -16,9 +16,23 @@ def RL(data_loaders, model, criterion, optimizer, epoch, args, mask=None):
     
     if args.dataset == "cifar100" or args.dataset == "TinyImagenet":
         try:
-            forget_dataset.targets = np.random.randint(0, args.num_classes, forget_dataset.targets.shape)
+            # Save original targets
+            original_targets = deepcopy(forget_dataset.targets)
+            # Generate random targets different from originals
+            random_targets = np.zeros_like(original_targets)
+            for i, orig_label in enumerate(original_targets):
+                # Generate a random label different from original
+                possible_labels = [j for j in range(args.num_classes) if j != orig_label]
+                random_targets[i] = np.random.choice(possible_labels)
+            forget_dataset.targets = random_targets
         except:
-            forget_dataset.dataset.targets = np.random.randint(0, args.num_classes, len(forget_dataset.dataset.targets))
+            # For nested dataset structure
+            original_targets = deepcopy(forget_dataset.dataset.targets)
+            random_targets = np.zeros_like(original_targets)
+            for i, orig_label in enumerate(original_targets):
+                possible_labels = [j for j in range(args.num_classes) if j != orig_label]
+                random_targets[i] = np.random.choice(possible_labels)
+            forget_dataset.dataset.targets = random_targets
     
         retain_dataset = retain_loader.dataset
         train_dataset = torch.utils.data.ConcatDataset([forget_dataset,retain_dataset])
@@ -87,7 +101,14 @@ def RL(data_loaders, model, criterion, optimizer, epoch, args, mask=None):
         
         for i, (image, target) in enumerate(forget_loader):
             image = image.cuda()
-            target = torch.randint(0, args.num_classes, target.shape).cuda()
+            original_target = target.cuda()
+            
+            # Generate random targets that are different from original ones
+            new_target = torch.zeros_like(original_target)
+            for j in range(original_target.size(0)):
+                possible_labels = [k for k in range(args.num_classes) if k != original_target[j].item()]
+                new_target[j] = torch.tensor(np.random.choice(possible_labels))
+            target = new_target.cuda()
             
             # compute output
             output_clean = model(image)

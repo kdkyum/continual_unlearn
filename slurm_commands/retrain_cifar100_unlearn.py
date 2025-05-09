@@ -19,8 +19,10 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Generate Slurm script for CIFAR-100 retraining unlearning')
-    parser.add_argument('--save_dir', type=str, default="checkpoints/cifar100_retrain_model",
-                        help='Directory to save the retrained models')
+    parser.add_argument('--save_dir', type=str, default="checkpoints/retrain_continual_unlearn",
+                        help='Base directory to save the retrained models')
+    parser.add_argument('--arch', type=str, default="resnet18", choices=["resnet18", "resnet50"],
+                        help='Model architecture to use (resnet18 or resnet50)')
     parser.add_argument('--data_path', type=str, default="/u/kdkyum/ptmp_link/.torchvision",
                         help='Path to the dataset')
     parser.add_argument('--output_dir', type=str, default="slurm_logs",
@@ -66,12 +68,12 @@ def generate_slurm_script(args):
 #SBATCH -o {args.output_dir}/{args.job_name}_%A_%a.out
 #SBATCH -e {args.output_dir}/{args.job_name}_%A_%a.err
 # Initial working directory:
-#SBATCH -D ./
+#SBATCH -D /raven/ptmp/kdkyum/workdir/continual_unlearn
 # Job name
 #SBATCH -J {args.job_name}
 #
 # Run as array job for each forget class combination (0-4, 0-9, 0-14, etc. up to 0-94)
-#SBATCH --array=0-18
+#SBATCH --array=0-19
 #
 #SBATCH --ntasks=1
 #SBATCH --constraint="gpu"
@@ -98,23 +100,24 @@ export WANDB_MODE=offline
 export OMP_NUM_THREADS=${{SLURM_CPUS_PER_TASK}}
 
 # Define base parameters
-BASE_SAVE_DIR="{args.save_dir}"
+BASE_SAVE_DIR="{args.save_dir}/{args.arch}/cifar100"
 EPOCHS=182
 LR=0.1
 DATA_PATH="{args.data_path}"
+ARCH="{args.arch}"
 
 # Calculate class IDs and save directory based on array task ID
-INCREMENT=5
+INCREMENT=1
 START_CLASS=0
 END_CLASS=$((START_CLASS + (SLURM_ARRAY_TASK_ID + 1) * INCREMENT - 1))
 CLASS_IDS=$(seq -s " " $START_CLASS $END_CLASS)
 SAVE_DIR="${{BASE_SAVE_DIR}}/0-${{END_CLASS}}"
 
-echo "Starting CIFAR-100 retraining unlearning for classes ${{CLASS_IDS}}..."
+echo "Starting CIFAR-100 retraining unlearning for classes ${{CLASS_IDS}} using ${{ARCH}}..."
 echo "Saving model to ${{SAVE_DIR}}"
 
 python main_forget.py --save_dir ${{SAVE_DIR}} \\
-    --dataset cifar100 --num_classes 100 \\
+    --dataset cifar100 --num_classes 100 --arch ${{ARCH}} \\
     --unlearn retrain --class_to_replace ${{CLASS_IDS}} \\
     --unlearn_epochs ${{EPOCHS}} --unlearn_lr ${{LR}} \\
     --data ${{DATA_PATH}}
@@ -135,7 +138,7 @@ echo "CIFAR-100 retrain unlearning complete for classes ${{CLASS_IDS}}!"
 def main():
     args = parse_args()
     
-    print(f"Generating Slurm array job for CIFAR-100 parallel retraining to unlearn classes in increments (0-4, 0-9, ..., 0-94)...")
+    print(f"Generating Slurm array job for CIFAR-100 parallel retraining with {args.arch} to unlearn classes in increments (0, 0-1, 0-2, ..., 0-19)...")
     script_path = generate_slurm_script(args)
     print(f"Slurm script generated at: {script_path}")
     

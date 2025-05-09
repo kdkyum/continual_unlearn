@@ -10,7 +10,7 @@ from .FT_prune_bi import FT_prune_bi
 from .GA_prune_bi import GA_prune_bi
 from .GA_prune import GA_prune
 from .neggrad import negative_grad
-from .synaptag import synaptag, synaptag_GA, synaptag_RL
+from .synaptag import synaptag, synaptag_NG, synaptag_RL
 
 from .RL_pro import RL_proximal
 from .boundary_ex import boundary_expanding
@@ -28,6 +28,8 @@ def get_unlearn_method(name):
     if name == "raw":
         return raw
     elif name == "RL":
+        return RL
+    elif name == "SalUn":
         return RL
     elif name == "GA":
         return GA
@@ -63,8 +65,8 @@ def get_unlearn_method(name):
         return RL_proximal
     elif name == "synaptag":
         return synaptag
-    elif name == "synaptag_GA":
-        return synaptag_GA
+    elif name == "synaptag_NG":
+        return synaptag_NG
     elif name == "synaptag_RL":
         return synaptag_RL
     else:

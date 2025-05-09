@@ -129,12 +129,12 @@ def generate_slurm_script(args, dataset, model, method, hp):
     if method == 'synaptag':
         sparsity = hp.get('best_sparsity', 0.05)
         method_specific_params = f"SPARSITY={sparsity}"
-    elif method == 'RL':  # SalUn method
+    elif method == 'SalUn':  # SalUn method
         method_specific_params = f"THRESHOLD={args.threshold}"
     
     # Determine save directory and method command
-    save_dir = f"checkpoints/{method}_continual_unlearn/{dataset}"
-    mask_dir = f"{save_dir}/masks" if method == 'RL' else None
+    save_dir = os.path.join("checkpoints", f"{method}_continual_unlearn", model, dataset)
+    mask_dir = f"{save_dir}/masks" if method == 'SalUn' else None
     
     # Create a job name
     job_name = f"{dataset}_{method}_continual_unlearn"
@@ -190,7 +190,7 @@ mkdir -p ${{BASE_SAVE_DIR}}
 """
     
     # Add mask directory creation for RL/SalUn method
-    if method == 'RL':
+    if method == 'SalUn':
         slurm_script += f"""
 # Create mask directory for SalUn method
 MASK_DIR="{mask_dir}"
@@ -230,7 +230,7 @@ for MAX_CLASS_ID in $(seq 0 $((MAX_CLASSES-1))); do
     done
     CLASS_LIST=$(echo ${CLASS_LIST} | xargs)  # Trim leading/trailing spaces
     
-    # Extract the last new class for mask generation (for SalUn/RL method)
+    # Extract the last new class for mask generation (for SalUn method)
     CLASS_TO_REPLACE=${MAX_CLASS_ID}
     
     echo "Unlearning classes: ${CLASS_LIST}"
@@ -268,10 +268,10 @@ for END_CLASS in $(seq $INCREMENT $INCREMENT $MAX_CLASS); do
 """
     
     # For SalUn/RL method, add mask generation step
-    if method == 'RL':
+    if method == 'SalUn':
         if dataset == 'cifar10':
             slurm_script += """
-    # Step 1: Generate the saliency map for SalUn/RL method
+    # Step 1: Generate the saliency map for SalUn method
     MASK_SUBDIR="${MASK_DIR}/0-${MAX_CLASS_ID}"
     mkdir -p ${MASK_SUBDIR}
     MASK_PATH="${MASK_SUBDIR}/with_${THRESHOLD}.pt"
@@ -298,7 +298,7 @@ for END_CLASS in $(seq $INCREMENT $INCREMENT $MAX_CLASS); do
 """
         else:  # cifar100
             slurm_script += """
-    # Step 1: Generate the saliency map for SalUn/RL method
+    # Step 1: Generate the saliency map for SalUn method
     MASK_SUBDIR="${MASK_DIR}/0-$((END_CLASS-1))"
     mkdir -p ${MASK_SUBDIR}
     MASK_PATH="${MASK_SUBDIR}/with_${THRESHOLD}.pt"
@@ -327,13 +327,13 @@ for END_CLASS in $(seq $INCREMENT $INCREMENT $MAX_CLASS); do
 """
     
     # Add the appropriate unlearning command based on method
-    if method == 'RL':  # SalUn method uses main_random.py
+    if method == 'SalUn':  # SalUn method uses main_random.py
         if dataset == 'cifar10':
             slurm_script += """
     # Step 2: Perform SalUn unlearning with main_random.py
     echo "Performing SalUn unlearning for classes: ${CLASS_LIST} with mask: ${MASK_PATH}"
     UNLEARN_COMMAND="python main_random.py --save_dir ${STEP_DIR} \\
-        --unlearn RL --class_to_replace ${CLASS_LIST} \\
+        --unlearn SalUn --class_to_replace ${CLASS_LIST} \\
         --unlearn_epochs ${UNLEARN_EPOCHS} --unlearn_lr ${UNLEARN_LR} \\
         --mask_path ${MASK_PATH} --data ${DATA_PATH}"
 """
@@ -342,7 +342,7 @@ for END_CLASS in $(seq $INCREMENT $INCREMENT $MAX_CLASS); do
     # Step 2: Perform SalUn unlearning with main_random.py
     echo "Performing SalUn unlearning for classes: ${CLASS_LIST} with mask: ${MASK_PATH}"
     UNLEARN_COMMAND="python main_random.py --save_dir ${STEP_DIR} \\
-        --unlearn RL --class_to_replace ${CLASS_LIST} \\
+        --unlearn SalUn --class_to_replace ${CLASS_LIST} \\
         --unlearn_epochs ${UNLEARN_EPOCHS} --unlearn_lr ${UNLEARN_LR} \\
         --mask_path ${MASK_PATH} --dataset cifar100 --num_classes 100 --data ${DATA_PATH}"
 """
@@ -450,8 +450,8 @@ def main():
     
     # Define datasets and methods based on user selection
     datasets = ['cifar10', 'cifar100'] if args.dataset == 'all' else [args.dataset]
-    model = 'resnet18'  # Only using resnet18 as specified
-    methods = ['synaptag_GA', 'synaptag_RL'] #['RL', 'GA', 'NG', 'FT', 'synaptag'] if args.method == 'all' else [args.method]
+    model = 'resnet50'  # Only using resnet18 as specified
+    methods = ["RL", "GA", "NG", "SalUn", "FT", "synaptag_RL", "synaptag_NG"] if args.method == 'all' else [args.method]
     
     # Track all generated scripts
     generated_scripts = []

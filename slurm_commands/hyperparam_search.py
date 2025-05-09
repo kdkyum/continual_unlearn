@@ -25,8 +25,6 @@ def parse_args():
                         help='Path to the pre-trained model to start unlearning from (set to None for non-continual learning setup)')
     parser.add_argument('--mask_dir', type=str, default=None,
                         help='Directory to save the generated masks (for RL method)')
-    parser.add_argument('--mask_ratio', type=float, default=0.5,
-                        help='Ratio of parameters to mask (for RL method)')
     parser.add_argument('--submit', action='store_true',
                         help='Submit the jobs to Slurm after creating the scripts')
     parser.add_argument('--analyze', action='store_true',
@@ -35,20 +33,20 @@ def parse_args():
     return parser.parse_args()
 
 def generate_learning_rates():
-    """Generate 20 learning rates between 10^-4 and 0.1 on a log scale"""
-    return np.logspace(-4, -1, 10)
+    return [0.1, 0.01, 0.001, 1e-4, 1e-5]
 
 def generate_sparsity_values():
     """Generate 10 sparsity values between 0.001 and 0.1 on a log scale"""
     # Start with log-spaced values between 0.001 and 0.1
-    return [0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08, 0.09, 0.1]
+    return [0.2, 0.3, 0.4, 0.5]
+    # return [0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08, 0.09, 0.1]
 
 def get_last_class(dataset):
     """Get the last class index for the dataset"""
     if dataset == "cifar10":
         return 9
     elif dataset == "cifar100":
-        return [95,96,97,98,99]
+        return [99]
     else:
         raise ValueError(f"Unknown dataset: {dataset}")
 
@@ -59,32 +57,33 @@ def generate_slurm_script(args, dataset, model, method, lr, sparsity=None, layer
     job_id = f"{timestamp}_{dataset}_{model}_{method}_lr{lr:.6f}"
     if sparsity is not None:
         job_id += f"_sparsity{sparsity:.6f}"
-    if method == "synaptag":
+    if "synaptag" in method:
         job_id += f"_{'layerwise' if layer_wise else 'nolayerwise'}"
     
     # Create directories
-    os.makedirs(args.output_dir, exist_ok=True)
-    method_dir = os.path.join(args.save_dir, dataset, model, method)
+    output_dir = os.path.join(args.output_dir, method)
+    os.makedirs(output_dir, exist_ok=True)
+    method_dir = os.path.join(args.save_dir, model, dataset, method)
     os.makedirs(method_dir, exist_ok=True)
     
     # For RL method, create the mask directory
     mask_dir = args.mask_dir
-    if method == "RL" and mask_dir is None:
-        mask_dir = os.path.join(args.save_dir, dataset, model, "masks")
-    if method == "RL":
+    if method == "SalUn" and mask_dir is None:
+        mask_dir = os.path.join(args.save_dir, model, dataset, method, f"lr{lr:.6f}", "masks")
+    if method == "SalUn":
         os.makedirs(mask_dir, exist_ok=True)
     
-    script_path = os.path.join(args.output_dir, f"{job_id}.sh")
+    script_path = os.path.join(output_dir, f"{job_id}.sh")
     
     # Determine the last class
     last_class = get_last_class(dataset)
     
     # Prepare the save directory for this specific run
 
-    save_path_base = os.path.join(args.save_dir, dataset, model, method, f"lr{lr:.6f}")
+    save_path_base = os.path.join(args.save_dir, model, dataset, method, f"lr{lr:.6f}")
     if sparsity is not None:
         save_path_base += f"_sparsity{sparsity:.6f}"
-    if method == "synaptag":
+    if "synaptag" in method:
         save_path = f"{save_path_base}_{'layerwise' if layer_wise else 'nolayerwise'}"
     else:
         save_path = save_path_base
@@ -94,8 +93,8 @@ def generate_slurm_script(args, dataset, model, method, lr, sparsity=None, layer
     with open(script_path, 'w') as f:
         f.write(f"""#!/bin/bash -l
 # Standard output and error:
-#SBATCH -o {args.output_dir}/{job_id}.out.%j
-#SBATCH -e {args.output_dir}/{job_id}.err.%j
+#SBATCH -o {output_dir}/{job_id}.out.%j
+#SBATCH -e {output_dir}/{job_id}.err.%j
 # Initial working directory:
 #SBATCH -D {project_dir}  # Set Slurm working directory explicitly
 # Job name
@@ -126,53 +125,58 @@ cd {project_dir} || exit 1  # Exit if cd fails
 
 """)
         
-        # For RL method, add mask generation step
-        if method == "RL":
-            if isinstance(last_class, list):
-                mask_path = f"{mask_dir}/mask_{last_class[0]}-{last_class[-1]}.pt"
-            else:
-                mask_path = f"{mask_dir}/mask_{last_class}.pt"
-            # Only generate mask if model_path is provided
-            if args.model_path:
-                if dataset == "cifar100":
-                    f.write(f"""# Generate mask for SalUn first
+        if method == "SalUn":
+            if dataset == "cifar100":
+                f.write(f"""# Generate mask for SalUn first
 echo "Generating mask for {dataset} {model} class {last_class}"
 python -u generate_mask.py \\
     --dataset {dataset} \\
+    --data {args.data_path} \\
     --arch resnet{model.split('resnet')[1]} \\
-    --model_path {args.model_path} \\
     --class_to_replace {" ".join(map(str, last_class))} \\
-    --save_path {mask_path} \\
-    --mask_ratio {args.mask_ratio} \\
+    --save_dir {mask_dir} \\
     --num_classes 100
 """)
-                else:
-                    f.write(f"""# Generate mask for SalUn first
+            else:
+                f.write(f"""# Generate mask for SalUn first
 echo "Generating mask for {dataset} {model} class {last_class}"
 python -u generate_mask.py \\
     --dataset {dataset} \\
+    --data {args.data_path} \\
     --arch resnet{model.split('resnet')[1]} \\
-    --model_path {args.model_path} \\
     --class_to_replace {last_class} \\
-    --save_path {mask_path} \\
-    --mask_ratio {args.mask_ratio} \\
+    --save_dir {mask_dir} \\
 """)
-                f.write("\n")
-                f.write(f"""if [ ! -f "{mask_path}" ]; then
-    echo "Mask generation failed"
-    exit 1
-fi
-
-""")
-            else:
-                # For non-continual setup, we'll use a dummy mask or no mask
-                f.write(f"""# Non-continual learning setup - no mask generation
-echo "Using non-continual learning setup for {dataset} {model} class {last_class}"
-
-""")
+            f.write("\n")
+            f.write(f"""# Run hyperparameter search
+echo "Running unlearning with {method}, lr={lr}"
+python -u main_random.py \\
+    --dataset {dataset} \\
+    --data {args.data_path} \\
+    --arch resnet{model.split('resnet')[1]} \\
+    --save_dir {save_path} \\""")
         
-        # Add the main unlearning command
-        f.write(f"""# Run hyperparameter search
+            if isinstance(last_class, list):
+                f.write(f"""
+    --class_to_replace {" ".join(map(str, last_class))} \\""")
+            else:
+                f.write(f"""
+    --class_to_replace {last_class} \\""")
+        
+            f.write(f"""
+    --unlearn {method} \\
+    --unlearn_lr {lr} \\
+    --unlearn_epochs 10 \\
+""")
+            if dataset in ["cifar100"]:
+                num_classes = 100
+                f.write(f"    --num_classes {num_classes} \\\n")
+
+            mask_path = os.path.join(mask_dir, f"with_0.5.pt")
+            f.write(f"    --mask_path {mask_path} \\\n")
+        
+        else: # Add the main unlearning command
+            f.write(f"""# Run hyperparameter search
 echo "Running unlearning with {method}, lr={lr}"
 python -u main_forget.py \\
     --dataset {dataset} \\
@@ -180,63 +184,50 @@ python -u main_forget.py \\
     --arch resnet{model.split('resnet')[1]} \\
     --save_dir {save_path} \\""")
         
-        # Only include model_path if provided
-        if args.model_path:
-            f.write(f"""
-    --model_path {args.model_path} \\""")
-        
-        if isinstance(last_class, list):
-            f.write(f"""
+            if isinstance(last_class, list):
+                f.write(f"""
     --class_to_replace {" ".join(map(str, last_class))} \\""")
-        else:
-            f.write(f"""
+            else:
+                f.write(f"""
     --class_to_replace {last_class} \\""")
         
-        f.write(f"""
+            f.write(f"""
     --unlearn {method} \\
     --unlearn_lr {lr} \\
     --unlearn_epochs 10 \\
 """)
-        if layer_wise:
-            f.write(f"    --layer_wise \\\n")
+            if layer_wise and "synaptag" in method:
+                f.write(f"    --layer_wise \\\n")
         
-        if dataset in ["cifar100"]:
-            num_classes = 100
-            f.write(f"    --num_classes {num_classes} \\\n")
+            if dataset in ["cifar100"]:
+                num_classes = 100
+                f.write(f"    --num_classes {num_classes} \\\n")
         
-        # Add method-specific parameters
-        if method == "RL":
-            if isinstance(last_class, list):
-                mask_path = f"{mask_dir}/mask_{last_class[0]}-{last_class[-1]}.pt"
-            else:
-                mask_path = f"{mask_dir}/mask_{last_class}.pt"
-            f.write(f"    --mask_path {mask_path} \\\n")
-        
-        if method == "synaptag" and sparsity is not None:
-            f.write(f"    --sparsity {sparsity} \\\n")
+            if "synaptag" in method and sparsity is not None:
+                f.write(f"    --sparsity {sparsity} \\\n")
         
         # Add code to extract and save the best RFA
         f.write(f"""
-    # Extract the best RFA from the results
-    RESULTS_FILE="{save_path}/model_best.pth.tar"
-    if [ -f "$RESULTS_FILE" ]; then
-        # Extract RFA using PyTorch to load the checkpoint
-        BEST_RFA=$(python -c "import torch; data=torch.load('$RESULTS_FILE', map_location='cpu'); print(data.get('rfa', 'N/A'))")
-        echo "Best RFA: $BEST_RFA"
-        
-        # Save the best RFA to a simple text file for easy parsing
-        echo "$BEST_RFA" > "{save_path}/best_rfa.txt"
-        
-        # Also save the retain and forget accuracy for reference
-        RETAIN_ACC=$(python -c "import torch; data=torch.load('$RESULTS_FILE', map_location='cpu'); print(data.get('retain_acc', 'N/A'))")
-        FORGET_ACC=$(python -c "import torch; data=torch.load('$RESULTS_FILE', map_location='cpu'); print(data.get('forget_acc', 'N/A'))")
-        echo "Retain Accuracy: $RETAIN_ACC, Forget Accuracy: $FORGET_ACC" >> "{save_path}/best_rfa.txt"
-    else
-        echo "No results file found at $RESULTS_FILE"
-    fi
+# Extract the best RFA from the results
+RESULTS_FILE="{save_path}/model_best.pth.tar"
+if [ -f "$RESULTS_FILE" ]; then
+    # Extract RFA using PyTorch to load the checkpoint
+    BEST_RFA=$(python -c "import torch; data=torch.load('$RESULTS_FILE', map_location='cpu'); print(data.get('rfa', 'N/A'))")
+    echo "Best RFA: $BEST_RFA"
+    
+    # Save the best RFA to a simple text file for easy parsing
+    echo "$BEST_RFA" > "{save_path}/best_rfa.txt"
+    
+    # Also save the retain and forget accuracy for reference
+    RETAIN_ACC=$(python -c "import torch; data=torch.load('$RESULTS_FILE', map_location='cpu'); print(data.get('retain_acc', 'N/A'))")
+    FORGET_ACC=$(python -c "import torch; data=torch.load('$RESULTS_FILE', map_location='cpu'); print(data.get('forget_acc', 'N/A'))")
+    echo "Retain Accuracy: $RETAIN_ACC, Forget Accuracy: $FORGET_ACC" >> "{save_path}/best_rfa.txt"
+else
+    echo "No results file found at $RESULTS_FILE"
+fi
 
-    echo "Hyperparameter search completed"
-    """)
+echo "Hyperparameter search completed"
+""")
     
     print(f"Generated Slurm script: {script_path}")
     return script_path
@@ -306,13 +297,14 @@ def submit_jobs_with_limit(scripts, max_jobs=50, check_interval=60):
 def analyze_results(args):
     """Analyze existing results to find the best hyperparameters"""
     datasets = ["cifar10", "cifar100"]
-    models = ["resnet18"]
-    methods = ["RL", "GA", "NG", "FT", "synaptag"]
+    models = ["resnet18", "resnet50"]
+    # methods = ["SalUn", "synaptag_NG"]
+    methods = ["RL", "GA", "NG", "SalUn", "FT", "synaptag_RL", "synaptag_NG"]
     
     best_params = {}
     
     for dataset, model, method in itertools.product(datasets, models, methods):
-        method_dir = f"{args.save_dir}/{dataset}/{model}/{method}"
+        method_dir = f"{args.save_dir}/{model}/{dataset}/{method}"
         print(f"\nAnalyzing {dataset} {model} {method}")
         if not os.path.exists(method_dir):
             print(f"  Directory not found: {method_dir}")
@@ -379,7 +371,7 @@ def analyze_results(args):
                         break
 
                 # Determine layer_wise for synaptag
-                if method == "synaptag":
+                if "synaptag" in method:
                     if "nolayerwise" in parts:
                         current_layer_wise = False
                     elif "layerwise" in parts:
@@ -393,7 +385,7 @@ def analyze_results(args):
                 continue
             
             # Update best parameters
-            if method == "synaptag":
+            if "synaptag" in method:
                 if current_layer_wise is True:
                     if rfa > best_rfa_lw:
                         best_rfa_lw = rfa
@@ -411,7 +403,7 @@ def analyze_results(args):
                     best_sparsity = sparsity # Sparsity might be None, which is fine
         
         # Store results
-        if method == "synaptag":
+        if "synaptag" in method:
             if best_lr_lw is not None:
                 config_lw = { "best_rfa": best_rfa_lw, "best_lr": best_lr_lw }
                 if best_sparsity_lw is not None: config_lw["best_sparsity"] = best_sparsity_lw
@@ -462,9 +454,10 @@ def main():
         return
     
     # Define the search space
-    datasets = ["cifar10", "cifar100"]
-    models = ["resnet18"]
-    methods = ["synaptag", "RL", "GA", "NG", "FT", "boundary_expanding", "boundary_shrink"]
+    datasets = ["cifar100"]
+    models = ["resnet18", "resnet50"]
+    # methods = ["synaptag_RL", "synaptag_NG"]
+    methods = ["RL", "GA", "NG", "SalUn", "FT", "synaptag_RL", "synaptag_NG"]
     learning_rates = generate_learning_rates()
     
     # Create output directories
@@ -476,7 +469,7 @@ def main():
     
     # For methods other than synaptag
     for dataset, model, method in itertools.product(datasets, models, methods):
-        if method != "synaptag":
+        if "synaptag" not in method:
             for lr in learning_rates:
                 script_path = generate_slurm_script(args, dataset, model, method, lr, layer_wise=True)
                 all_scripts.append(script_path)
